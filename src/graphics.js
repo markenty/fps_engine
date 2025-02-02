@@ -1,7 +1,7 @@
-// graphics.js -- the core rendering engine, updated & optimized
+// graphics.js -- the core rendering engine, updated & optimized for a modern, cell‑shaded cyberpunk look
 //
 // Original Copyright (C) 2019, Nicholas Carlini <nicholas@carlini.com>
-// Modified for a modern, cell‐shaded (90's cartoon vibe) approach.
+// Modified for a modern, cell‐shaded (cyberpunk vibe) approach.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -22,8 +22,9 @@ uniform float u_ambient_light;
 uniform float u_light_brightness[5];
 uniform sampler2D u_texture[9];
 
-// NEW: Toggle for toon shading and the primary light direction
+// NEW UNIFORMS FOR TOON SHADING / CYBERPUNK VIBE
 uniform bool u_cell_shading;
+uniform vec3 u_neonColor;
 uniform vec3 u_lightDirection;
 
 out vec4 out_color;
@@ -77,7 +78,7 @@ void main() {
   }
   v_color = a_color;
   v_angle = a_angle;
-  gl_Position = world_position; // dummy; actual clip-space comes from light matrices
+  gl_Position = world_position; // Dummy value; actual clip-space is set later.
 }
 `;
   gl.attachShader(program, createShader(gl, gl.VERTEX_SHADER, vertexShaderSource));
@@ -85,7 +86,6 @@ void main() {
   gl.linkProgram(program);
   if (gl.getProgramParameter(program, gl.LINK_STATUS)) {
     const locations = {};
-    // A quick token extractor for uniforms and attributes:
     const extractTokens = src => {
       const regex = /(?:in|uniform)\s+\w+\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\[[0-9]+\])?)/g;
       let match, tokens = [];
@@ -97,6 +97,14 @@ void main() {
         ? gl.getAttribLocation(program, tok)
         : gl.getUniformLocation(program, tok);
     });
+    // Set default uniform values for new uniforms.
+    gl.useProgram(program);
+    // Set u_cell_shading to false by default
+    gl.uniform1i(locations.u_cell_shading, false);
+    // Default neon color: bright cyan
+    gl.uniform3fv(locations.u_neonColor, new Float32Array([0.0, 1.0, 1.0]));
+    // Default light direction: coming from above and behind the camera
+    gl.uniform3fv(locations.u_lightDirection, new Float32Array([0.0, 0.0, -1.0]));
     return [program, locations];
   }
   console.log(gl.getProgramInfoLog(program));
@@ -106,7 +114,6 @@ void main() {
 
 const make_proj_matrix = (fov, aspect, rotation, position) => {
   const f = Math.tan(Math.PI / 2 - fov / 2);
-  // A simple perspective projection matrix
   const projection = [
     f / aspect, 0, 0, 0,
     0, f, 0, 0,
@@ -207,7 +214,7 @@ ${code}
     [this._texture, this.framebuffer] = setup_framebuffer(31, type === gl.RG, W, H);
     this.post_filter = (source_texture, other_texture) => {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-      gl.useProgram(this._program);
+      gl.useProgram(shaderProgram);
       gl.uniform4fv(prog_locations.u_shift_color, global_screen_color);
       [
         [source_texture, "u_texture[0]", 30],
@@ -267,7 +274,8 @@ const make_gl_texture = (texture_id, texture_types, H, W, data) => {
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texImage2D(
     gl.TEXTURE_2D, 0, texture_types ? gl.RG32F : gl.RGBA32F,
-    H, W, 0, texture_types ? gl.RG : gl.RGBA, gl.FLOAT, data
+    H, W, 0,
+    texture_types ? gl.RG : gl.RGBA, gl.FLOAT, data
   );
   return texture;
 };
@@ -314,12 +322,12 @@ class Light {
   }
 }
 
-const all_textures = [];
-const make_texture = arr => {
+var all_textures = [];
+function make_texture(arr) {
   all_textures.push(make_gl_texture(10, 0, 256, 256, new Float32Array(arr)));
   gl.generateMipmap(gl.TEXTURE_2D);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-};
+}
 
 function setup_graphics() {
   gl.getExtension("EXT_color_buffer_float");
@@ -340,7 +348,7 @@ void main() {
   }
   vec3 baseColor = v_color.rgb * (u_ambient_light + lightIntensity);
   if(u_render_texture > 0) {
-      baseColor *= get_shader(u_texture_mux+5, world_position.xy / 32.0).rgb;
+      baseColor *= get_shader(u_texture_mux+5, world_position.xy/32.0).rgb;
   }
   out_color = vec4(baseColor, 1.0);
 }
@@ -349,44 +357,44 @@ void main() {
   [program2, locations2] = createProgram(gl, fragmentShaderHeader + `//SHADER
 void main() {
     out_color.r = distance(u_light_position[u_which_shadow_light], world_position);
-    out_color.g = out_color.r * out_color.r;
+    out_color.g = out_color.r*out_color.r;
 }
 `);
   
   // Set up some Perlin noise for textures
-  const lerp = (x, y, r) => { r = r * r * (3 - 2 * r); return x * (1 - r) + y * r; };
-  const random_points = range(16).map(() => range(16).map(() => NewVector(urandom(), urandom(), 0)._normalize()));
+  const lerp = (x,y,r) => { r = r*r*(3-2*r); return x*(1-r)+y*r; };
+  const random_points = range(16).map(_=> range(16).map(_=> NewVector(urandom(), urandom(), 0)._normalize()));
   const perlin_noise = cartesian_product_map(range(256), range(256), (y, x) => {
     y /= 16; x /= 16;
     const up_left = NewVector(Math.floor(x), Math.floor(y), 0);
     const out = cartesian_product_map(range(2), range(2), (dy, dx) =>
-      random_points[(Math.floor(y) + dy) & 15][(Math.floor(x) + dx) & 15].dot(
-        up_left.add(NewVector(dx - x, dy - y, 0))
+      random_points[(Math.floor(y)+dy)&15][(Math.floor(x)+dx)&15].dot(
+        up_left.add(NewVector(dx-x, dy-y, 0))
       )
     );
-    const lerp1 = lerp(out[0], out[1], x - up_left.x);
-    const lerp2 = lerp(out[2], out[3], x - up_left.x);
-    return 2 * lerp(lerp1, lerp2, y - up_left.y) + 0.2;
+    const lerp1 = lerp(out[0], out[1], x-up_left.x);
+    const lerp2 = lerp(out[2], out[3], x-up_left.x);
+    return 2*lerp(lerp1, lerp2, y-up_left.y)+0.2;
   });
   
   // Build textures
-  make_texture(perlin_noise.map(x => [x, x, x, 1]).flat());
-  make_texture(perlin_noise.map(x => [x, 0, 0, 1]).flat());
+  make_texture(perlin_noise.map(x=> [x,x,x,1]).flat());
+  make_texture(perlin_noise.map(x=> [x,0,0,1]).flat());
   make_texture(cartesian_product_map(range(256), range(256), (y, x) => {
-    if ((y % 64) <= 2 || Math.abs(x - (((Math.floor(y / 64)) % 2) * 128)) <= 2) {
-      return [0, 0, 0, 1];
+    if ((y % 64) <= 2 || Math.abs(x - (((Math.floor(y/64)) % 2)*128)) <= 2) {
+      return [0,0,0,1];
     } else {
-      const r = 0.9 - perlin_noise[x * 256 + y] / 20;
+      const r = 0.9 - perlin_noise[x*256+y]/20;
       return [r, r, r, 1];
     }
   }).flat());
-  const r = cartesian_product_map(range(16), range(8), (y, x) => [32 * y, 64 * (x + (y % 2) / 2), 1 + (y % 2)]);
+  const r = cartesian_product_map(range(16), range(8), (y, x) => [32*y, 64*(x+(y%2)/2), 1+(y%2)]);
   make_texture(cartesian_product_map(range(256), range(256), (y, x) => {
-    const tmp = r.map(p => [p[2] * (Math.abs(p[0] - x) + Math.abs(p[1] - y)), p[2]]).sort((a, b) => a[0] - b[0]);
-    if (Math.abs(tmp[0][0] - tmp[1][0]) < 4) {
-      return [1, 1, 1, 1];
+    const tmp = r.map(p => [p[2]*(Math.abs(p[0]-x)+Math.abs(p[1]-y)), p[2]]).sort((a,b)=>a[0]-b[0]);
+    if (Math.abs(tmp[0][0]-tmp[1][0]) < 4) {
+      return [1,1,1,1];
     }
-    return [0.1, 0.1, 0.1, 1];
+    return [0.1,0.1,0.1,1];
   }).flat());
-  make_texture(perlin_noise.map(x => [x, 0, 0, 1]).flat());
+  make_texture(perlin_noise.map(x=> [x,0,0,1]).flat());
 }
