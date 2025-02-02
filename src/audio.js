@@ -50,75 +50,62 @@ function doplay() {
 var toaudio = x => transpose(x).map(sum);
 
 function load() {
-    // Define new note arrays for a dubstep vibe.
-    // The numbers represent semitone offsets. In this version, we use lower values
-    // (and later subtract 24 semitones) to get deep, bass‐heavy tones.
-    var dubstep_bass = [null, 2, 2, 1, null, 0, null, 0, 1, 2, null, 2, 1, 0, null, 0];
-    var dubstep_lead = [4, 5, 7, 5, 4, 2, 4, 5, 7, 5, 4, 2];
-    
-    // Define the song sections.
-    // Each section is defined as:
-    // [melodyOffset, melodyDuration, harmonyDuration, melodyArray, (optional) harmonyArray]
-    var arr = [
-        [0, 0.8, 0.8, dubstep_bass],
-        [0, 0.5, 0.5, dubstep_lead],
-        [0, 0.8, 0.8, dubstep_bass],
-        [0, 0.5, 0.5, dubstep_lead],
-        [0, 1, 1, dubstep_bass, dubstep_lead]
-    ];
-    
-    // Prepare the global musicnotes array (300 time slots)
-    musicnotes = range(300).map(function() { return []; });
-    var offset = 0;
-    
-    // Helper function: converts note values into sound buffers via jsfxr.
-    // For a dubstep sound, we lower each note by 24 semitones (2 octaves)
-    // and adjust the jsfxr parameters for a heavier tone.
-    var addnote = function(kind, note, where, length) {
-        if (note == null) return;
-        var adjustedNote = note - 24; // Lower by two octaves
-        var time = length * 0.11 + 0.13;
-        musicnotes[where + offset].push(
-            toaudio(
-                [adjustedNote / 12, adjustedNote / 12 - 1].map(function(f) {
-                    f = Math.pow(2, f / 2) * 0.25;
-                    return kind 
-                        ? jsfxr([3, 0.15, time, 0.2, 0.4, f, , , , , , , 0.6, , , -0.5, , 0.3, , , , 0.2])
-                        : jsfxr([3, 0.15, time + 0.1, 0.35, 0.6, f, , , , , , , , , , 0.2, , , 0.1]);
-                })
-            )
-        );
-    };
-    
-    // Sequentially process each section and schedule note playback.
-    var donext = function() {
-        if (!arr.length) {
-            main_go();
-            return;
-        }
-        var section = arr.shift();
-        var offset_melody = section[0],
-            duration_melody = section[1],
-            duration_harmony = section[2];
-        var parts = section.slice(3);
-        parts.forEach(function(notesArray, j) {
-            notesArray.forEach(function(note, i) {
-                addnote(
-                    (!j && arr.length < 5), 
-                    note == null ? null : note + offset_melody * (!j ? 1 : 0),
-                    i * (j ? duration_harmony : duration_melody),
-                    (j ? duration_harmony : duration_melody)
-                );
-            });
-        });
-        offset += duration_melody * parts[0].length;
-        jQ.innerHTML = (6 - arr.length) + "/6";
-        setTimeout(arr.length ? donext : main_go, 1);
-    };
-    
-    setTimeout(donext, 1);
-}
+    var melody =  [null, 19, 17, 19, 15, 19, 14, 19, 12, 19, 11, 19, 12, 19, 14, 19, 15, 19, 7, 19, 9, 19, 11, 19, 12, 19, 11, 19, 12, 19, 14, 19];
+    var harmony_2 =  [15, 16, 17, 10, 8, 7, 8, 10, 12, 4, 5, 7, 8, 7, 8, 4];
+    var melody_4 =  [20, 24, 20, 24, 25, 17, 25, 17, 22, 19, 22, 19, 24, 15, 24, 15, 20, 17, 20, 17, 23, 14, 23, 14, 19, 15, 19, 15, 17, 11, 17, 11, 15, 12, 15, 12, 14, 8, 14, 8];
+    var harmony_4 =  [5, 17, 5, 17, 12, 17, 12, 17, 10, 13, 10, 13, 10, 13, 10, 13, 10, 15, 10, 15, 10, 15, 10, 15, 8, 12, 8, 12, 8, 12, 8, 12, 8, 14, 8, 14, 8, 14, 8, 14, 7, 11, 7, 11, 7, 11, 7, 11, 3, 12, 3, 12, 3, 12, 3, 12, 2, 8, 2, 8, 2, 8, 2, 8, 0, 19, 0, 19, 0, 19, 0, 19, 2, 5, 2, 5, 2, 5, 2, 5];
+    var harmony_9 =  [3, 2, 0, 5, 3, 2, 3, -1, 0, -1, 0, 2, 3, 2, 3, -1];
 
+    var melody_11 =  [15, 19, 14, 19, 12, 19, 10, 19, 8, 19, 10, 19, 12, 17, 20, 17, 14, 17, 12, 17, 10, 17, 20, 17, 7, 17, 8, 17, 10, 15, 7, 15, 12, 15, 10, 15, 8, 15, 7, 15, 5, 15, 19, 15, 8, 14, 5, 14, 11, 14, 8, 14, 7, 14, 5, 14, 3, 14, 5, 14];
+    var harmony_11_up =  [7, 12, 12, null, 10, 10, 10, null, 9, 9, 9, null, 7, 7, 7];
+    var harmony_11_down =  [0, 3, 5, null, -2, 2, 3, null, -4, 0, 2, null, -5, -1, 12];
+
+    var final_melody =  [19, 24, 15, 24, 14, 26, 14, 26, 15, 24, 15, 24, 20, 23, 20, 23, 19, 24, 15, 24, 14, 26, 14, 26, 15, 24, 15, 24];
+    var final_harmony_up =  [null, 12, 11, 11, 12, 12, 14, null, null, 12, 11, 11, 12, 12, 14];
+    var final_harmony_down =  [null, 3, 8, 8, 7, 7, 17, null, null, 7, 8, 8, 7, 7, 6];
+
+
+    /* offset of melody, duration of melody, duration of harmony, melody, harmony */
+    var arr = [
+        [0, 1, 1, melody],
+        [5, 1, 2, melody, harmony_2],
+        [0, 2, 1, melody_4, harmony_4],
+        [12, 1, 2, melody, harmony_9],
+        [12, 1, 4, melody_11, harmony_11_up, harmony_11_down],
+        [0, 1, 2, final_melody, final_harmony_up, final_harmony_down]
+    ]
+
+    musicnotes = range(300).map(_=>[])
+
+    var addnote = (kind, note, where, length) => {
+        if (note == null) return;
+        var time = length * 0.11+.13;
+        musicnotes[where+offset].push(toaudio([note/12, note/12-1].map(f=> {
+            f=2**(f/2) * .25;
+            return kind ? 
+                jsfxr([3,0.1,time,0.1,0.3,f,,,,,,,,0.5,,,-1,,0.2,,,,,0.1])
+                :
+                jsfxr([3,0.1,time+.07,.3,0.5,f,,,,,,,,,,,,,0.15,,,,,0.1])
+        })))
+    }
+
+
+    
+    var offset = 0;
+
+    var donext = _ => {
+        var [offset_melody, duration_melody, duration_harmony, ...music] = arr.shift()
+        music.map((notes,j)=>notes.map(
+            (note,i) => addnote(!j && arr.length < 5,
+                                note==null?null:note+offset_melody*(!j),
+                                i*(j?duration_harmony:duration_melody),
+                                (j?duration_harmony:duration_melody))))
+        offset += duration_melody*music[0].length;
+        jQ.innerHTML = (6-arr.length)+"/6"
+        setTimeout(arr.length ? donext : main_go,1)
+    }
+    setTimeout(donext,1)
+}
 
 var arr;
 function setup_audio() {
