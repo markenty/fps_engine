@@ -49,6 +49,7 @@ function doplay() {
 
 var toaudio = x => transpose(x).map(sum);
 
+// --- NEW load() for dubstep music ---
 function load() {
     // Define new note arrays for a dubstep vibe.
     // The numbers represent semitone offsets. In this version, we use lower values
@@ -56,10 +57,8 @@ function load() {
     var dubstep_bass = [null, 2, 2, 1, null, 0, null, 0, 1, 2, null, 2, 1, 0, null, 0];
     var dubstep_lead = [4, 5, 7, 5, 4, 2, 4, 5, 7, 5, 4, 2];
     
-    // Define the song sections.
-    // Each section is defined as:
-    // [melodyOffset, melodyDuration, harmonyDuration, melodyArray, (optional) harmonyArray]
-    var arr = [
+    // Use a local variable "songSections" to avoid conflicting with the global arr.
+    var songSections = [
         [0, 0.8, 0.8, dubstep_bass],
         [0, 0.5, 0.5, dubstep_lead],
         [0, 0.8, 0.8, dubstep_bass],
@@ -92,11 +91,11 @@ function load() {
     
     // Sequentially process each section and schedule note playback.
     var donext = function() {
-        if (!arr.length) {
+        if (!songSections.length) {
             main_go();
             return;
         }
-        var section = arr.shift();
+        var section = songSections.shift();
         var offset_melody = section[0],
             duration_melody = section[1],
             duration_harmony = section[2];
@@ -104,7 +103,7 @@ function load() {
         parts.forEach(function(notesArray, j) {
             notesArray.forEach(function(note, i) {
                 addnote(
-                    (!j && arr.length < 5), 
+                    (!j && songSections.length < 5), 
                     note == null ? null : note + offset_melody * (!j ? 1 : 0),
                     i * (j ? duration_harmony : duration_melody),
                     (j ? duration_harmony : duration_melody)
@@ -112,8 +111,8 @@ function load() {
             });
         });
         offset += duration_melody * parts[0].length;
-        jQ.innerHTML = (6 - arr.length) + "/6";
-        setTimeout(arr.length ? donext : main_go, 1);
+        jQ.innerHTML = (6 - songSections.length) + "/6";
+        setTimeout(songSections.length ? donext : main_go, 1);
     };
     
     setTimeout(donext, 1);
